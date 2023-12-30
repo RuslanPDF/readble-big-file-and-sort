@@ -1,5 +1,7 @@
 const fs = require('node:fs')
 const path = require('path');
+const EventEmitter = require('events')
+const myEmitter = new EventEmitter()
 
 process.on('message', (message) => {
 	const restrictions_memory = message?.memory;
@@ -22,8 +24,7 @@ process.on('message', (message) => {
 		wordArray.forEach((word) => {
 			const fileName = getFileName(word);
 			if (!writeStreams[fileName]) {
-				const res = path.join(__dirname, 'results', fileName)
-				writeStreams[fileName] = fs.createWriteStream(res, {
+				writeStreams[fileName] = fs.createWriteStream(path.join(message.pathFiles.pathTemporaryFolder, fileName), {
 					flags: 'a',
 					encoding: 'utf-8',
 					highWaterMark: restrictions_memory.max_size_write
@@ -38,14 +39,72 @@ process.on('message', (message) => {
 			writeStreams[writeStream].destroy();
 		}
 		readStream.destroy();
-		process.send('Сортировка файла закончено!');
-		process.exit();
+		process.send('Успешно создали временные файлы!');
+		myEmitter.emit('merge', message)
 	});
 });
 
-// const init = [
-//   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-//   'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
-// ];
-// const initFileName = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
-// const writeStream = init.map((filename) => fs.createWriteStream(path.join(__dirname, 'utils', filename), {highWaterMark: MEMORY}))
+myEmitter.on('merge', async (message) => {
+	try {
+		await readFileAndMerge(message);
+		process.send('Финальный этап закончен!')
+	}catch (e) {
+		console.error(e)
+	}finally {
+		process.exit()
+	}
+})
+
+async function readFileAndMerge(message) {
+	return new Promise((resolve, reject) => {
+		fs.readdir(message.pathFiles.pathTemporaryFolder, async (err, files) => {
+			if (err) {
+				console.error(err)
+				reject(err)
+			}
+
+			const writeStream = fs.createWriteStream(message.pathFiles.outputFile, {
+				flags: 'a',
+				encoding: 'utf-8',
+				highWaterMark: message.memory.max_size
+			})
+			// и хотя я получаю файлы в упорядочном виде благодаря windows 10 но я не знаю как поведет получение данных в других операционых системах и сортирую
+			const sortedFiles = files.sort()
+
+			for (const sortedFile of sortedFiles) {
+				const filePath = path.join(message.pathFiles.pathTemporaryFolder, sortedFile)
+
+				try {
+					await readAndWriteFile(filePath, writeStream, message.memory.max_size_read)
+				}catch (e) {
+					console.log(e)
+				}
+			}
+
+			writeStream.end(() => {
+				console.log('Запись завершена.');
+				resolve();
+			});
+		})
+	})
+}
+
+function readAndWriteFile(filePath, writeStream, highWaterMark){
+	return new Promise((resolve, reject) => {
+		const readStream = fs.createReadStream(filePath, {highWaterMark}
+		)
+		readStream.on("data", (chunk) => {
+			console.log(chunk)
+			writeStream.write(chunk);
+		})
+		readStream.on('end', () => {
+			readStream.destroy()
+			resolve()
+		})
+		readStream.on('error', (err) => {
+			console.error(err)
+			readStream.destroy();
+			reject(err)
+		})
+	})
+}

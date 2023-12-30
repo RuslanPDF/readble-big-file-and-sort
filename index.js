@@ -18,7 +18,8 @@ child.send({
 	},
 	pathFiles: {
 		inputFile: path.join(__dirname, 'text.txt'),
-		outputFile: path.join(__dirname, 'utils'),
+		outputFile: path.join(__dirname, 'res.txt'),
+		pathTemporaryFolder: path.join(__dirname, 'results')
 	}
 });
 
