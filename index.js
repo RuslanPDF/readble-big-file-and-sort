@@ -4,6 +4,7 @@ const MAX_MEMORY_SIZE = 500 * 1024 * 1024; // кол-во ОЗУ которую 
 const MAX_MEMORY_SIZE_READ = MAX_MEMORY_SIZE;
 const MAX_MEMORY_SIZE_WRITE = 15 * 1024 * 1024;
 
+// запуск в отдельном потоке
 const child = fork('fork.js', []);
 
 child.on('message', (message) => {

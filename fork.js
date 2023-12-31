@@ -7,22 +7,32 @@ process.on('message', (message) => {
 	const restrictions_memory = message?.memory;
 	const pathFiles = message?.pathFiles;
 
+	// проверка не пустая ли переменная
 	if (!restrictions_memory || !pathFiles) {
 		return process.exit();
 	}
 
 	const readStream = fs.createReadStream(pathFiles.inputFile, {highWaterMark: restrictions_memory.max_size_read});
+	// в объекте будем хранить createWriteStream
+	// example - {
+	//    "a.txt": createWriteStream
+	// }
 	const writeStreams = {};
 
+	// получение имя файла
 	function getFileName(word) {
 		const firstLetter = word.charAt(0).toLowerCase();
 		return `${firstLetter}.txt`
 	}
 
 	readStream.on('data', (chunk) => {
+		// с Buffer я перевожу в читабельный вид и пробразую в массив
+		// ['word', 'apple', 'банан']
 		const wordArray = chunk.toString().split(' ');
 		wordArray.forEach((word) => {
+			// a.txt , b.txt
 			const fileName = getFileName(word);
+			// проверка есть ли в объекте такой стрим
 			if (!writeStreams[fileName]) {
 				writeStreams[fileName] = fs.createWriteStream(path.join(message.pathFiles.pathTemporaryFolder, fileName), {
 					flags: 'a',
@@ -30,6 +40,8 @@ process.on('message', (message) => {
 					highWaterMark: restrictions_memory.max_size_write
 				})
 			}
+			// вызываем стрим и записываем слово в файл
+			// a.txt = apple
 			writeStreams[fileName].write(` ${word}`)
 		})
 	})
@@ -72,9 +84,11 @@ async function readFileAndMerge(message) {
 			const sortedFiles = files.sort()
 
 			for (const sortedFile of sortedFiles) {
+				// получаем путь к файлу
 				const filePath = path.join(message.pathFiles.pathTemporaryFolder, sortedFile)
 
 				try {
+					// читаем и записываем данные в файл res.txt
 					await readAndWriteFile(filePath, writeStream, message.memory.max_size_read)
 				}catch (e) {
 					console.log(e)
@@ -95,6 +109,7 @@ function readAndWriteFile(filePath, writeStream, highWaterMark){
 		)
 		readStream.on("data", (chunk) => {
 			console.log(chunk)
+			// читаем и записываем чанк
 			writeStream.write(chunk);
 		})
 		readStream.on('end', () => {
